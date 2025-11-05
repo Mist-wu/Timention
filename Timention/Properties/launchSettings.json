@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Timention (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Timention (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
