@@ -59,7 +59,7 @@ class TimentionApp:
         # 更新提示文案
         label = tk.Label(
             self.top, 
-            text="是时候休息一下了！\n\n[任意键] 继续倒计时\n[ESC] 退出程序", 
+            text="喝水", 
             font=("Microsoft YaHei", 40, "bold"), # 使用微软雅黑显示中文更友好
             fg="white",
             bg="black"
