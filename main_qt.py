@@ -1,18 +1,152 @@
 import sys
 from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QVBoxLayout, 
-                             QDialog, QSpinBox, QPushButton, QHBoxLayout)
+                             QDialog, QPushButton, QHBoxLayout)
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QPainter, QColor, QPen, QPainterPath
 
-# 定义箭头图标的 SVG 数据 (无需外部图片文件)
-# 向上箭头 (颜色: #cdd6f4)
-UP_ARROW_SVG = """
-data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23cdd6f4' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 15l-6-6-6 6'/%3E%3C/svg%3E
-"""
-# 向下箭头 (颜色: #cdd6f4)
-DOWN_ARROW_SVG = """
-data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23cdd6f4' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E
-"""
+
+class CustomSpinBox(QWidget):
+    """自定义数字调节控件，完全自绘"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._value = 20
+        self._min = 1
+        self._max = 2000
+        self.init_ui()
+    
+    def init_ui(self):
+        self.setFixedSize(430, 100)
+        
+        layout = QHBoxLayout()
+        layout.setContentsMargins(20, 5, 5, 5)
+        layout.setSpacing(10)
+        self.setLayout(layout)
+        
+        # 数字显示标签
+        self.value_label = QLabel(str(self._value))
+        self.value_label.setAlignment(Qt.AlignCenter)
+        self.value_label.setStyleSheet("""
+            QLabel {
+                color: #cdd6f4;
+                font-size: 64px;
+                font-family: "Segoe UI", "Microsoft YaHei";
+                font-weight: bold;
+                background: transparent;
+            }
+        """)
+        layout.addWidget(self.value_label, 1)
+        
+        # 按钮容器
+        btn_container = QVBoxLayout()
+        btn_container.setSpacing(6)
+        btn_container.setContentsMargins(0, 5, 10, 5)
+        
+        # 向上按钮
+        self.up_btn = ArrowButton("up")
+        self.up_btn.setFixedSize(50, 38)
+        self.up_btn.clicked.connect(self.increment)
+        
+        # 向下按钮
+        self.down_btn = ArrowButton("down")
+        self.down_btn.setFixedSize(50, 38)
+        self.down_btn.clicked.connect(self.decrement)
+        
+        btn_container.addWidget(self.up_btn)
+        btn_container.addWidget(self.down_btn)
+        
+        layout.addLayout(btn_container)
+        
+        # 整体样式
+        self.setStyleSheet("""
+            CustomSpinBox {
+                background-color: #313244;
+                border: 3px solid #45475a;
+                border-radius: 16px;
+            }
+            CustomSpinBox:focus {
+                border: 3px solid #89b4fa;
+                background-color: #363a4f;
+            }
+        """)
+    
+    def value(self):
+        return self._value
+    
+    def setValue(self, val):
+        self._value = max(self._min, min(self._max, val))
+        self.value_label.setText(str(self._value))
+    
+    def setRange(self, min_val, max_val):
+        self._min = min_val
+        self._max = max_val
+    
+    def increment(self):
+        self.setValue(self._value + 1)
+    
+    def decrement(self):
+        self.setValue(self._value - 1)
+    
+    def wheelEvent(self, event):
+        if event.angleDelta().y() > 0:
+            self.increment()
+        else:
+            self.decrement()
+
+
+class ArrowButton(QPushButton):
+    """带箭头图标的按钮"""
+    def __init__(self, direction="up", parent=None):
+        super().__init__(parent)
+        self.direction = direction
+        self.setCursor(Qt.PointingHandCursor)
+        self.setStyleSheet("""
+            QPushButton {
+                background: #45475a;
+                border-radius: 6px;
+                border: none;
+            }
+            QPushButton:hover {
+                background: #585b70;
+            }
+            QPushButton:pressed {
+                background: #89b4fa;
+            }
+        """)
+    
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # 设置画笔
+        pen = QPen(QColor("#cdd6f4"))
+        pen.setWidth(3)
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
+        painter.setPen(pen)
+        
+        # 计算箭头位置
+        w = self.width()
+        h = self.height()
+        cx = w // 2
+        cy = h // 2
+        size = 8  # 箭头大小
+        
+        # 绘制箭头路径
+        path = QPainterPath()
+        if self.direction == "up":
+            path.moveTo(cx - size, cy + size // 2)
+            path.lineTo(cx, cy - size // 2)
+            path.lineTo(cx + size, cy + size // 2)
+        else:
+            path.moveTo(cx - size, cy - size // 2)
+            path.lineTo(cx, cy + size // 2)
+            path.lineTo(cx + size, cy - size // 2)
+        
+        painter.drawPath(path)
+        painter.end()
+
 
 class ReminderOverlay(QWidget):
     """全屏提醒遮罩层"""
@@ -67,92 +201,42 @@ class SettingsDialog(QDialog):
         self.init_ui()
 
     def init_ui(self):
-        # 1. 界面尺寸：进一步放大，更加宽敞
         self.setFixedSize(700, 520)
         self.setWindowTitle("Timention 设置")
         
-        # 移除默认帮助按钮
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
 
-        # 2. 样式表：核心美化逻辑
-        self.setStyleSheet(f"""
-            QDialog {{
+        self.setStyleSheet("""
+            QDialog {
                 background-color: #1e1e2e;
-            }}
-            QLabel {{
+            }
+            QLabel {
                 color: #cdd6f4;
                 font-family: "Microsoft YaHei";
-            }}
-            /* 调整框整体样式 */
-            QSpinBox {{
-                background-color: #313244;
-                color: #cdd6f4;
-                border: 3px solid #45475a;
-                border-radius: 16px;
-                padding: 0px 20px; /* 左右内边距 */
-                font-size: 64px;   /* 超大字体显示数字 */
-                font-family: "Segoe UI", "Microsoft YaHei";
-                font-weight: bold;
-                selection-background-color: #585b70;
-            }}
-            QSpinBox:focus {{
-                border: 3px solid #89b4fa; /* 聚焦时高亮边框 */
-                background-color: #363a4f;
-            }}
-            
-            /* 绘制上下调节按钮 */
-            QSpinBox::up-button, QSpinBox::down-button {{
-                width: 60px;  /* 按钮加宽 */
-                background: #45475a;
-                border-radius: 6px;
-                margin: 5px; /* 按钮与边框的间距 */
-                border: none;
-            }}
-            QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
-                background: #585b70;
-            }}
-            QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {{
-                background: #89b4fa;
-            }}
-
-            /* 使用 SVG 绘制图标 */
-            QSpinBox::up-button {{
-                subcontrol-origin: border;
-                subcontrol-position: top right;
-                image: url("{UP_ARROW_SVG.strip()}"); /* 引用上方定义的SVG */
-                padding: 4px;
-            }}
-            QSpinBox::down-button {{
-                subcontrol-origin: border;
-                subcontrol-position: bottom right;
-                image: url("{DOWN_ARROW_SVG.strip()}");
-                padding: 4px;
-            }}
-
-            /* 底部操作按钮 */
-            QPushButton {{
+            }
+            QPushButton {
                 background-color: #89b4fa;
                 color: #1e1e2e;
                 border-radius: 12px;
                 font-family: "Microsoft YaHei";
-                font-size: 24px; /* 按钮字体放大 */
+                font-size: 24px;
                 font-weight: bold;
                 padding: 16px 32px;
                 border: none;
-            }}
-            QPushButton:hover {{
+            }
+            QPushButton:hover {
                 background-color: #b4befe;
-            }}
-            QPushButton:pressed {{
+            }
+            QPushButton:pressed {
                 background-color: #74c7ec;
-            }}
-            QPushButton#cancelBtn {{
+            }
+            QPushButton#cancelBtn {
                 background-color: #45475a;
                 color: #cdd6f4;
-            }}
-            QPushButton#cancelBtn:hover {{
+            }
+            QPushButton#cancelBtn:hover {
                 background-color: #585b70;
-            }}
+            }
         """)
 
         layout = QVBoxLayout()
@@ -172,15 +256,13 @@ class SettingsDialog(QDialog):
         desc_label.setStyleSheet("font-size: 30px; color: #bac2de;")
         layout.addWidget(desc_label)
 
-        # 输入框容器
+        # 使用自定义 SpinBox
         input_container = QHBoxLayout()
         input_container.addStretch()
         
-        self.spin_box = QSpinBox()
+        self.spin_box = CustomSpinBox()
         self.spin_box.setRange(1, 2000)
         self.spin_box.setValue(20)
-        self.spin_box.setFixedSize(430, 100)
-        self.spin_box.setAlignment(Qt.AlignCenter)
         
         input_container.addWidget(self.spin_box)
         input_container.addStretch()
@@ -222,7 +304,6 @@ class TimentionApp:
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.show_reminder)
 
-        # 启动时显示自定义设置框
         self.interval_minutes = self.get_user_interval()
         
         if self.interval_minutes:
