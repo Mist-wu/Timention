@@ -1,13 +1,21 @@
 import sys
 from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QVBoxLayout, 
-                             QInputDialog)
+                             QDialog, QSpinBox, QPushButton, QHBoxLayout)
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QFont, QPalette, QColor
+from PyQt5.QtGui import QFont
 
+# 定义箭头图标的 SVG 数据 (无需外部图片文件)
+# 向上箭头 (颜色: #cdd6f4)
+UP_ARROW_SVG = """
+data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23cdd6f4' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 15l-6-6-6 6'/%3E%3C/svg%3E
+"""
+# 向下箭头 (颜色: #cdd6f4)
+DOWN_ARROW_SVG = """
+data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23cdd6f4' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E
+"""
 
 class ReminderOverlay(QWidget):
     """全屏提醒遮罩层"""
-    # 定义一个信号，当提醒被忽略（非ESC键）时触发
     dismissed = pyqtSignal()
 
     def __init__(self):
@@ -15,26 +23,19 @@ class ReminderOverlay(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        # 设置窗口标志：无边框、置顶、工具窗口(不在任务栏显示)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        
-        # 美化：使用现代深色背景
         self.setStyleSheet("background-color: #1e1e2e;")
 
-        # 布局管理器
         layout = QVBoxLayout()
         self.setLayout(layout)
 
-        # 提示标签
         self.label = QLabel("💧 该喝水了")
         self.label.setAlignment(Qt.AlignCenter)
         
-        # 美化：设置字体 (使用微软雅黑或系统无衬线字体)
         font = QFont("Microsoft YaHei", 72, QFont.Bold)
         self.label.setFont(font)
-        self.label.setStyleSheet("color: #cdd6f4;")  # 柔和的淡紫色/白色
+        self.label.setStyleSheet("color: #cdd6f4;")
 
-        # 副标题提示
         self.sub_label = QLabel("按 ESC 退出程序，按任意键继续工作")
         self.sub_label.setAlignment(Qt.AlignCenter)
         sub_font = QFont("Microsoft YaHei", 14)
@@ -47,97 +48,212 @@ class ReminderOverlay(QWidget):
         layout.addStretch()
 
     def showEvent(self, event):
-        """窗口显示时确保获取焦点"""
         super().showEvent(event)
         self.setFocus()
 
     def keyPressEvent(self, event):
-        """处理按键逻辑"""
         if event.key() == Qt.Key_Escape:
             QApplication.quit()
-            print("程序退出。")
         else:
             self.hide()
             self.dismissed.emit()
-            print("提醒关闭，计时器重置。")
+
+
+class SettingsDialog(QDialog):
+    """自定义美化版设置界面"""
+    def __init__(self):
+        super().__init__()
+        self.value = None
+        self.init_ui()
+
+    def init_ui(self):
+        # 1. 界面尺寸：进一步放大，更加宽敞
+        self.setFixedSize(700, 520)
+        self.setWindowTitle("Timention 设置")
+        
+        # 移除默认帮助按钮
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+
+        # 2. 样式表：核心美化逻辑
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: #1e1e2e;
+            }}
+            QLabel {{
+                color: #cdd6f4;
+                font-family: "Microsoft YaHei";
+            }}
+            /* 调整框整体样式 */
+            QSpinBox {{
+                background-color: #313244;
+                color: #cdd6f4;
+                border: 3px solid #45475a;
+                border-radius: 16px;
+                padding: 0px 20px; /* 左右内边距 */
+                font-size: 64px;   /* 超大字体显示数字 */
+                font-family: "Segoe UI", "Microsoft YaHei";
+                font-weight: bold;
+                selection-background-color: #585b70;
+            }}
+            QSpinBox:focus {{
+                border: 3px solid #89b4fa; /* 聚焦时高亮边框 */
+                background-color: #363a4f;
+            }}
+            
+            /* 绘制上下调节按钮 */
+            QSpinBox::up-button, QSpinBox::down-button {{
+                width: 60px;  /* 按钮加宽 */
+                background: #45475a;
+                border-radius: 6px;
+                margin: 5px; /* 按钮与边框的间距 */
+                border: none;
+            }}
+            QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
+                background: #585b70;
+            }}
+            QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {{
+                background: #89b4fa;
+            }}
+
+            /* 使用 SVG 绘制图标 */
+            QSpinBox::up-button {{
+                subcontrol-origin: border;
+                subcontrol-position: top right;
+                image: url("{UP_ARROW_SVG.strip()}"); /* 引用上方定义的SVG */
+                padding: 4px;
+            }}
+            QSpinBox::down-button {{
+                subcontrol-origin: border;
+                subcontrol-position: bottom right;
+                image: url("{DOWN_ARROW_SVG.strip()}");
+                padding: 4px;
+            }}
+
+            /* 底部操作按钮 */
+            QPushButton {{
+                background-color: #89b4fa;
+                color: #1e1e2e;
+                border-radius: 12px;
+                font-family: "Microsoft YaHei";
+                font-size: 24px; /* 按钮字体放大 */
+                font-weight: bold;
+                padding: 16px 32px;
+                border: none;
+            }}
+            QPushButton:hover {{
+                background-color: #b4befe;
+            }}
+            QPushButton:pressed {{
+                background-color: #74c7ec;
+            }}
+            QPushButton#cancelBtn {{
+                background-color: #45475a;
+                color: #cdd6f4;
+            }}
+            QPushButton#cancelBtn:hover {{
+                background-color: #585b70;
+            }}
+        """)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(60, 60, 60, 60)
+        layout.setSpacing(40)
+        self.setLayout(layout)
+
+        # 标题
+        title_label = QLabel("专注时长设置")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet("font-size: 60px; font-weight: bold; color: #89b4fa; letter-spacing: 2px;")
+        layout.addWidget(title_label)
+
+        # 说明文字
+        desc_label = QLabel("请设置提醒的时间间隔 (分钟)")
+        desc_label.setAlignment(Qt.AlignCenter)
+        desc_label.setStyleSheet("font-size: 30px; color: #bac2de;")
+        layout.addWidget(desc_label)
+
+        # 输入框容器
+        input_container = QHBoxLayout()
+        input_container.addStretch()
+        
+        self.spin_box = QSpinBox()
+        self.spin_box.setRange(1, 2000)
+        self.spin_box.setValue(20)
+        self.spin_box.setFixedSize(430, 100)
+        self.spin_box.setAlignment(Qt.AlignCenter)
+        
+        input_container.addWidget(self.spin_box)
+        input_container.addStretch()
+        layout.addLayout(input_container)
+
+        layout.addStretch()
+
+        # 底部按钮区域
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(30)
+        
+        self.cancel_btn = QPushButton("退 出")
+        self.cancel_btn.setObjectName("cancelBtn")
+        self.cancel_btn.setCursor(Qt.PointingHandCursor)
+        self.cancel_btn.clicked.connect(self.reject)
+        
+        self.ok_btn = QPushButton("开始专注")
+        self.ok_btn.setCursor(Qt.PointingHandCursor)
+        self.ok_btn.clicked.connect(self.accept_value)
+        
+        btn_layout.addStretch()
+        btn_layout.addWidget(self.cancel_btn)
+        btn_layout.addWidget(self.ok_btn)
+        btn_layout.addStretch()
+        
+        layout.addLayout(btn_layout)
+
+    def accept_value(self):
+        self.value = self.spin_box.value()
+        self.accept()
 
 
 class TimentionApp:
     def __init__(self):
         self.app = QApplication(sys.argv)
-        self.apply_global_style()
         
-        self.overlay = None  # 延迟初始化
-        
+        self.overlay = None
         self.timer = QTimer()
-        self.timer.setSingleShot(True)  # 触发一次后停止，等待手动重启
+        self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.show_reminder)
 
-        # 获取用户输入
+        # 启动时显示自定义设置框
         self.interval_minutes = self.get_user_interval()
         
         if self.interval_minutes:
-            # 用户确认后再初始化提醒窗口
             self.overlay = ReminderOverlay()
             self.overlay.dismissed.connect(self.restart_timer)
-            
             self.start_timer()
             sys.exit(self.app.exec_())
         else:
             sys.exit()
 
-    def apply_global_style(self):
-        """设置输入框的全局样式"""
-        self.app.setStyle("Fusion")
-        palette = QPalette()
-        palette.setColor(QPalette.Window, QColor(30, 30, 46))
-        palette.setColor(QPalette.WindowText, QColor(205, 214, 244))
-        palette.setColor(QPalette.Button, QColor(49, 50, 68))
-        palette.setColor(QPalette.ButtonText, QColor(205, 214, 244))
-        palette.setColor(QPalette.Base, QColor(24, 24, 37))
-        palette.setColor(QPalette.AlternateBase, QColor(30, 30, 46))
-        palette.setColor(QPalette.ToolTipBase, QColor(205, 214, 244))
-        palette.setColor(QPalette.ToolTipText, QColor(205, 214, 244))
-        palette.setColor(QPalette.Text, QColor(205, 214, 244))
-        palette.setColor(QPalette.BrightText, Qt.red)
-        palette.setColor(QPalette.Link, QColor(137, 180, 250))
-        palette.setColor(QPalette.Highlight, QColor(137, 180, 250))
-        palette.setColor(QPalette.HighlightedText, Qt.black)
-        self.app.setPalette(palette)
-
     def get_user_interval(self):
-        """弹出输入框"""
-        num, ok = QInputDialog.getInt(
-            None, 
-            "Timention 设置", 
-            "请输入提醒间隔（分钟）:", 
-            value=30, 
-            min=1, 
-            max=1440
-        )
-        if ok:
-            return num
+        dialog = SettingsDialog()
+        if dialog.exec_() == QDialog.Accepted:
+            return dialog.value
         return None
 
     def start_timer(self):
-        # QTimer 单位是毫秒
         ms = self.interval_minutes * 60 * 1000
         print(f"计时开始，将在 {self.interval_minutes} 分钟后提醒...")
         self.timer.start(ms)
 
     def show_reminder(self):
-        """显示全屏提醒"""
         if self.overlay:
             self.overlay.showFullScreen()
             self.overlay.raise_()
             self.overlay.activateWindow()
-            self.overlay.setFocus()  # 确保窗口获得键盘焦点
+            self.overlay.setFocus()
 
     def restart_timer(self):
-        """重置计时器"""
         print("提醒关闭，计时器重置。")
         self.start_timer()
-
 
 if __name__ == "__main__":
     TimentionApp()
