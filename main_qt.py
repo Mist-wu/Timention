@@ -1,8 +1,9 @@
 import sys
 from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QVBoxLayout, 
-                             QInputDialog, QDesktopWidget)
+                             QInputDialog)
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont, QPalette, QColor
+
 
 class ReminderOverlay(QWidget):
     """全屏提醒遮罩层"""
@@ -16,9 +17,6 @@ class ReminderOverlay(QWidget):
     def init_ui(self):
         # 设置窗口标志：无边框、置顶、工具窗口(不在任务栏显示)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        
-        # 设置全屏
-        self.showFullScreen()
         
         # 美化：使用现代深色背景
         self.setStyleSheet("background-color: #1e1e2e;")
@@ -34,7 +32,7 @@ class ReminderOverlay(QWidget):
         # 美化：设置字体 (使用微软雅黑或系统无衬线字体)
         font = QFont("Microsoft YaHei", 72, QFont.Bold)
         self.label.setFont(font)
-        self.label.setStyleSheet("color: #cdd6f4;") # 柔和的淡紫色/白色
+        self.label.setStyleSheet("color: #cdd6f4;")  # 柔和的淡紫色/白色
 
         # 副标题提示
         self.sub_label = QLabel("按 ESC 退出程序，按任意键继续工作")
@@ -48,33 +46,41 @@ class ReminderOverlay(QWidget):
         layout.addWidget(self.sub_label)
         layout.addStretch()
 
+    def showEvent(self, event):
+        """窗口显示时确保获取焦点"""
+        super().showEvent(event)
+        self.setFocus()
+
     def keyPressEvent(self, event):
         """处理按键逻辑"""
         if event.key() == Qt.Key_Escape:
-            # ESC 彻底退出
             QApplication.quit()
+            print("程序退出。")
         else:
-            # 其他按键，隐藏窗口并发送信号
             self.hide()
             self.dismissed.emit()
+            print("提醒关闭，计时器重置。")
+
 
 class TimentionApp:
     def __init__(self):
         self.app = QApplication(sys.argv)
         self.apply_global_style()
         
+        self.overlay = None  # 延迟初始化
+        
         self.timer = QTimer()
-        self.timer.setSingleShot(True) # 触发一次后停止，等待手动重启
+        self.timer.setSingleShot(True)  # 触发一次后停止，等待手动重启
         self.timer.timeout.connect(self.show_reminder)
-
-        # 初始化提醒窗口
-        self.overlay = ReminderOverlay()
-        self.overlay.dismissed.connect(self.restart_timer)
 
         # 获取用户输入
         self.interval_minutes = self.get_user_interval()
         
         if self.interval_minutes:
+            # 用户确认后再初始化提醒窗口
+            self.overlay = ReminderOverlay()
+            self.overlay.dismissed.connect(self.restart_timer)
+            
             self.start_timer()
             sys.exit(self.app.exec_())
         else:
@@ -93,8 +99,6 @@ class TimentionApp:
         palette.setColor(QPalette.ToolTipBase, QColor(205, 214, 244))
         palette.setColor(QPalette.ToolTipText, QColor(205, 214, 244))
         palette.setColor(QPalette.Text, QColor(205, 214, 244))
-        palette.setColor(QPalette.Button, QColor(49, 50, 68))
-        palette.setColor(QPalette.ButtonText, QColor(205, 214, 244))
         palette.setColor(QPalette.BrightText, Qt.red)
         palette.setColor(QPalette.Link, QColor(137, 180, 250))
         palette.setColor(QPalette.Highlight, QColor(137, 180, 250))
@@ -103,7 +107,6 @@ class TimentionApp:
 
     def get_user_interval(self):
         """弹出输入框"""
-        # QInputDialog 默认样式比较简陋，这里依赖全局样式表美化
         num, ok = QInputDialog.getInt(
             None, 
             "Timention 设置", 
@@ -124,14 +127,17 @@ class TimentionApp:
 
     def show_reminder(self):
         """显示全屏提醒"""
-        self.overlay.showFullScreen()
-        self.overlay.raise_()
-        self.overlay.activateWindow()
+        if self.overlay:
+            self.overlay.showFullScreen()
+            self.overlay.raise_()
+            self.overlay.activateWindow()
+            self.overlay.setFocus()  # 确保窗口获得键盘焦点
 
     def restart_timer(self):
         """重置计时器"""
         print("提醒关闭，计时器重置。")
         self.start_timer()
+
 
 if __name__ == "__main__":
     TimentionApp()
